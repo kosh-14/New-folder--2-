@@ -1,0 +1,63 @@
+name: CodeReviewBot
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # Optionally restrict to specific branches:
+    # branches: [main, develop]
+
+# Prevent concurrent runs on the same PR (cancel older run)
+concurrency:
+  group: codereviewbot-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: AI Code Review
+    runs-on: ubuntu-latest
+
+    # Only run on PRs (not on push to branches directly)
+    if: github.event_name == 'pull_request'
+
+    permissions:
+      contents: read
+      pull-requests: write  # Required to post PR comments and reviews
+      issues: write         # Required to post issue comments
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Checkout CodeReviewBot
+        uses: actions/checkout@v4
+        with:
+          repository: https://github.com/kosh-14/New-folder--2-/tree/main/codereviewbot   # ← update this
+          path: .codereviewbot
+          # If your bot repo is private, add a deploy key or PAT:
+          # token: ${{ secrets.CODEREVIEWBOT_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: .codereviewbot
+        run: npm ci --production
+
+      - name: Run CodeReviewBot
+        working-directory: .codereviewbot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # Optional: paste your project's coding standards here
+          # or store them as a secret / in a file
+          CODING_STANDARDS: |
+            - Use TypeScript strict mode
+            - All functions must have JSDoc comments
+            - No console.log in production code (use logger)
+            - SQL queries must use parameterized statements
+            - Follow OWASP Top 10 guidelines
+        run: node index.js
